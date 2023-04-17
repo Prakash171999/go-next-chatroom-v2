@@ -7,6 +7,7 @@ type WsServer struct {
 	broadcast  chan []byte
 }
 
+// NewWebsocketServer creates a new WsServer type
 func NewWebsocketServer() *WsServer {
 	return &WsServer{
 		clients:    make(map[*Client]bool),
@@ -22,6 +23,7 @@ func NewWebsocketServer() *WsServer {
 func (server *WsServer) Run() {
 	for {
 		select {
+
 		case client := <-server.register:
 			server.registerClient(client)
 
@@ -31,6 +33,7 @@ func (server *WsServer) Run() {
 		case message := <-server.broadcast:
 			server.broadcastToClients(message)
 		}
+
 	}
 }
 
