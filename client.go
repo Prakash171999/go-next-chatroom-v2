@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"log"
 	"net/http"
 	"time"
@@ -23,21 +22,32 @@ const (
 	maxMessageSize = 10000
 )
 
+var (
+	newline = []byte{'\n'}
+	space   = []byte{' '}
+)
+
 var upgrader = websocket.Upgrader{
 	ReadBufferSize:  4096,
 	WriteBufferSize: 4096,
 }
 
+// Client represents the websocket client at the server
 type Client struct {
+	// The actual websocket connection.
 	conn     *websocket.Conn
 	wsServer *WsServer
 	send     chan []byte
 }
 
-var (
-	newline = []byte{'\n'}
-	space   = []byte{' '}
-)
+func newClient(conn *websocket.Conn, wsServer *WsServer) *Client {
+	return &Client{
+		conn:     conn,
+		wsServer: wsServer,
+		send:     make(chan []byte, 256),
+	}
+
+}
 
 func (client *Client) readPump() {
 	defer func() {
@@ -60,6 +70,7 @@ func (client *Client) readPump() {
 
 		client.wsServer.broadcast <- jsonMessage
 	}
+
 }
 
 func (client *Client) writePump() {
@@ -103,18 +114,18 @@ func (client *Client) writePump() {
 	}
 }
 
-func newClient(conn *websocket.Conn, wsServer *WsServer) *Client {
-	return &Client{
-		conn:     conn,
-		wsServer: wsServer,
-		send:     make(chan []byte, 256),
-	}
+func (client *Client) disconnect() {
+	client.wsServer.unregister <- client
+	close(client.send)
+	client.conn.Close()
 }
 
+// ServeWs handles websocket requests from clients requests.
 func ServeWs(wsServer *WsServer, w http.ResponseWriter, r *http.Request) {
+
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
-		log.Panicln(err)
+		log.Println(err)
 		return
 	}
 
@@ -124,7 +135,4 @@ func ServeWs(wsServer *WsServer, w http.ResponseWriter, r *http.Request) {
 	go client.readPump()
 
 	wsServer.register <- client
-
-	fmt.Println("New client joined!")
-	fmt.Println(client)
 }
